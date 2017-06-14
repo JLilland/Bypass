@@ -1,4 +1,9 @@
 
+
+
+// NEED TO FIX MILLIS() ROLLOVER ERROR
+
+
 /* 
      v1.1 (non-latching relay)
      
@@ -90,4 +95,5 @@ void loop() {
 
   lastswitchstate = reading;                          //save current reading as lastswitchstate for next time through loop
 }
+
 
