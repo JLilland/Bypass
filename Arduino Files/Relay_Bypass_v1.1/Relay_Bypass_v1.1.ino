@@ -1,94 +1,88 @@
 
-/* 
-     v1.1 (non-latching relay)
+/******************************************************************************* 
+
+
+     v1.2 (non-latching relay)
      
         - Hold-momentary mode (1 second)
         - Debounce time: 30ms
         - Mute time: 10ms -> switch relay -> 20ms
         - Active-low switch
 
-
+                ATTINY25/45/85
                     ______
         (RESET) 5 -|1 \/ 8|-   (Vcc)
     (Relay/LED) 3 -|2    7|- 2 (Switch)
          (Mute) 4 -|3    6|- 1 (NC)
           (GND)   -|4____5|- 0 (NC)
+
+
           
-         -github test-
-         -test test-
-*/
+*********************************************************************************/
 
 
 
-const int pin_Switch = 2;            // the number of the pushbutton pin
-const int pin_Activate = 3;          // pin to switch the "on" coil of the relay
-const int pin_Mute = 4;              // pin to trigger mute
+const int switch_pin = 2;         // the number of the pushbutton pin
+const int coil_pin = 3;           // pin to switch the relay coil
+const int mute_pin = 4;           // pin to trigger mute
 
-
-int pedalState = LOW;                // starts pedal in bypass mode
-int switchstate;                     // the current reading from the input pin
-int lastswitchstate = HIGH;          // the previous reading from the input pin
-
-
-
-const int debounceDelay = 30;        // the debounce time; increase if the output flickers
-const int toggleDelay = 1000;        // time until hold-momentary mode active
-const int muteDelay = 20;            // time pedal is muted after relay is switched
-
-
-unsigned long lastDebounceTime = 0;  // the last time the output pin was toggled
-unsigned long lastStateChange = 0;   // the last time the state was changed (effect on or off)
-
+byte pedalState = LOW;
+byte lastReading = HIGH;
 
 void setup() {
-  pinMode(pin_Switch, INPUT);
-  pinMode(pin_Activate, OUTPUT);
-  pinMode(pin_Mute, OUTPUT);
+  pinMode(switch_pin, INPUT);
+  pinMode(coil_pin, OUTPUT);
+  pinMode(mute_pin, OUTPUT);
 
-  // set initial pedal state
-  digitalWrite(pin_Activate, pedalState);
-  digitalWrite(pin_Mute, LOW);
+  digitalWrite(coil_pin, LOW);    // set initial pedal state
+  digitalWrite(mute_pin, LOW);
 }
+
 
 void loop() {
+  static unsigned long debounce_timestamp;
+  static unsigned long state_change_timestamp;
+  byte currentReading = digitalRead(switch_pin);    // reading is the current state of switch_pin 
   
-  int reading = digitalRead(pin_Switch);    // reading is the current state of pin_Switch 
-  
-  if (reading != lastswitchstate) {
-    lastDebounceTime = millis();            // reset the debouncing time to current time
+  if (currentReading !=  lastReading && millis()-debounce_timestamp > 50) {             // if the reading has changed (and it's not in the middle of the 30ms debounce),
+    debounce_timestamp = millis();                                                      // set debounce timestamp to current millis
   }
-
-  if ((millis() - lastDebounceTime) > debounceDelay) {      //wait until timer is 30ms past debouncing time
-    
-    if (reading != switchstate)                       // if the button state has changed:
+  if (((millis() - debounce_timestamp) > 30) && (currentReading != lastReading)) {      // after 30ms debounce, if reading is still changed:
+    if (currentReading == LOW || millis() - state_change_timestamp > 1000)              // if the switch is pressed down, or it's released after being held for 1 second
     {   
-      switchstate = reading;
-      
-        if (switchstate == LOW)                       // if the switch is currently pressed 
-        {   
-          pedalState = !pedalState;                   // change pedal state
-          lastStateChange = millis();
-                                                      // now actually change LED and switch relay
-          digitalWrite(pin_Mute, HIGH);               // mute output of circuit
-          delay(10);                                  // wait for mute
-          digitalWrite(pin_Activate, pedalState);     // turn effect on/off
-          delay(muteDelay);                           // wait for relay to switch
-          digitalWrite(pin_Mute, LOW);                // turn mute off
-        }
-        else if (millis()-lastStateChange>toggleDelay)      // if switch is held longer than one second, switch state when switch is released
-        {      
-          pedalState = !pedalState;                   // change pedal state
-          lastStateChange = millis();             
-                                                      // now actually change LED and switch relay
-          digitalWrite(pin_Mute, HIGH);               // mute output of circuit
-          delay(10);                                  // wait for mute
-          digitalWrite(pin_Activate, pedalState);     // turn effect on/off
-          delay(muteDelay);                           // wait for relay to switch
-          digitalWrite(pin_Mute, LOW);                // turn mute off
-        }
+      switchPedalState();                       
+      state_change_timestamp = millis();          // set state change timestamp to current millis
     }
+    lastReading = currentReading;                 // save current reading as lastReading for next time through loop
   }
-
-  lastswitchstate = reading;                          //save current reading as lastswitchstate for next time through loop
 }
+
+
+void switchPedalState(){ 
+  pedalState = !pedalState;                // change pedal state
+  digitalWrite(mute_pin, HIGH);            // mute output of circuit
+  delay(4);                                // wait for mute
+  digitalWrite(coil_pin, pedalState);      // turn effect on/off
+  delay(30);                               // wait 20ms for relay to switch
+  digitalWrite(mute_pin, LOW);             // turn mute off
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
